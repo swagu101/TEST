@@ -13,6 +13,8 @@ if "otp" not in st.session_state:
     st.session_state.otp = None
 if "otp_time" not in st.session_state:
     st.session_state.otp_time = None
+if "user_email" not in st.session_state:
+    st.session_state.user_email = None
 
 # --- EMAIL SENDER FUNCTION ---
 def send_email(to_email, otp):
@@ -30,13 +32,13 @@ def send_email(to_email, otp):
         st.error(f"Error sending email: {e}")
         return False
 
-
 # --- STEP 1: LOGIN ---
 if st.session_state.step == "login":
     st.title("🔐 Secure Login with Email-based 2FA")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
+    user_email = st.text_input("Your Email")  # user enters their email
 
     if st.button("Login"):
         # Dummy credentials (replace with DB validation)
@@ -44,12 +46,10 @@ if st.session_state.step == "login":
             otp = random.randint(100000, 999999)
             st.session_state.otp = str(otp)
             st.session_state.otp_time = time.time()
+            st.session_state.user_email = user_email
 
-            # replace this with the user's real email
-            recipient_email = "duttpriya70@gmail.com"
-
-            if send_email(recipient_email, otp):
-                st.success("✅ OTP sent to your email. Check your inbox.")
+            if send_email(user_email, otp):
+                st.success(f"✅ OTP sent to {user_email}. Check your inbox.")
                 st.session_state.step = "verify"
         else:
             st.error("Invalid username or password ❌")
@@ -72,8 +72,10 @@ elif st.session_state.step == "verify":
 # --- STEP 3: DASHBOARD ---
 elif st.session_state.step == "dashboard":
     st.title("🎉 Welcome to Your Dashboard!")
-    st.write("You are now securely logged in using 2FA via email.")
+    st.write(f"You are now securely logged in as **{st.session_state.user_email}** using 2FA via email.")
     if st.button("Logout"):
         st.session_state.step = "login"
         st.session_state.otp = None
         st.session_state.otp_time = None
+        st.session_state.user_email = None
+
