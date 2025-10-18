@@ -38,7 +38,7 @@ def send_email(to_email, otp):
 GITHUB_CLIENT_ID = st.secrets.get("github_client_id", "")
 GITHUB_CLIENT_SECRET = st.secrets.get("github_client_secret", "")
 APP_BASE_URL = st.secrets.get("app_base_url", "http://localhost:8501")
-REDIRECT_URI = APP_BASE_URL.rstrip("/")  # ✅ FIXED — no /.auth path
+REDIRECT_URI = APP_BASE_URL.rstrip("/") + "/.auth"
 
 def get_github_auth_url():
     params = {
@@ -77,36 +77,20 @@ def fetch_github_profile(access_token):
     return user
 
 # --- HANDLE GITHUB CALLBACK ---
-params = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
+params = st.experimental_get_query_params()
 if "code" in params:
-    code = params["code"][0] if isinstance(params["code"], list) else params["code"]
-    st.title("🐙 Logging in via GitHub...")
-    with st.spinner("Authenticating with GitHub..."):
-        try:
-            token = exchange_github_code_for_token(code)
-            if "error" in token:
-                st.error(f"GitHub OAuth Error: {token.get('error_description', 'Unknown error')}")
-                st.stop()
-            access_token = token.get("access_token")
-            if access_token:
-                profile = fetch_github_profile(access_token)
-                st.session_state.step = "dashboard"
-                st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
-
-                # ✅ Clear query params safely
-                try:
-                    if hasattr(st, "query_params"):
-                        st.query_params.clear()
-                    else:
-                        st.experimental_set_query_params()
-                except Exception:
-                    pass
-
-                st.toast("✅ GitHub login successful!")
-                st.stop()
-        except Exception as e:
-            st.error(f"GitHub login failed: {e}")
-            st.stop()
+    code = params["code"][0]
+    try:
+        token = exchange_github_code_for_token(code)
+        access_token = token.get("access_token")
+        if access_token:
+            profile = fetch_github_profile(access_token)
+            st.session_state.step = "dashboard"
+            st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
+            st.experimental_set_query_params()  # clear URL params
+            st.experimental_rerun()
+    except Exception as e:
+        st.error(f"GitHub login failed: {e}")
 
 # --- LOGIN PAGE ---
 if st.session_state.step == "login":
@@ -143,7 +127,7 @@ if st.session_state.step == "login":
                 st.error("GitHub OAuth not configured in secrets.")
             else:
                 auth_url = get_github_auth_url()
-                st.markdown(f"[👉 Click here to authorize via GitHub]({auth_url})")
+                st.markdown(f"[Click here to authorize via GitHub]({auth_url})")
 
 # --- OTP VERIFY ---
 elif st.session_state.step == "verify":
@@ -163,9 +147,8 @@ elif st.session_state.step == "verify":
 elif st.session_state.step == "dashboard":
     st.title("🎉 Welcome to Your Dashboard!")
     st.write(f"You are securely logged in as **{st.session_state.user_email}**")
-
     if st.button("Logout"):
         for key in ["step", "otp", "otp_time", "user_email"]:
             st.session_state[key] = None
         st.session_state.step = "login"
-        st.rerun()
+        st.experimental_rerun()
