@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 st.set_page_config(page_title="2FA Login", page_icon="🔐")
 
 # --- SESSION STATE INIT ---
-for key in ["step", "otp", "otp_time", "user_email", "github_handled", "dummy"]:
+for key in ["step", "otp", "otp_time", "user_email"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -75,7 +75,7 @@ def fetch_github_profile(access_token):
 
 # --- HANDLE GITHUB CALLBACK ---
 params = st.query_params
-if "code" in params and not st.session_state.github_handled:
+if "code" in params and st.session_state.step == "login":
     code = params["code"][0]
     try:
         token = exchange_github_code_for_token(code)
@@ -84,9 +84,14 @@ if "code" in params and not st.session_state.github_handled:
             profile = fetch_github_profile(access_token)
             st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
             st.session_state.step = "dashboard"
-            st.session_state.github_handled = True
-            st.query_params = {}  # clear URL params
-            st.session_state.dummy = random.random()  # trigger rerun
+            
+            # Clear URL and reload app using JS redirect
+            st.write("""
+                <script>
+                    window.history.replaceState({}, document.title, "/");
+                    window.location.reload();
+                </script>
+            """, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"GitHub login failed: {e}")
 
@@ -148,7 +153,7 @@ elif st.session_state.step == "dashboard":
     st.title("🎉 Welcome to Your Dashboard!")
     st.write(f"You are securely logged in as **{st.session_state.user_email}**")
     if st.button("Logout"):
-        for key in ["step", "otp", "otp_time", "user_email", "github_handled"]:
+        for key in ["step", "otp", "otp_time", "user_email"]:
             st.session_state[key] = None
         st.session_state.step = "login"
-        st.session_state.dummy = random.random()  # trigger rerun
+        st.experimental_rerun()  # optional, just to reload cleanly
