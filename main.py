@@ -77,7 +77,7 @@ def fetch_github_profile(access_token):
     return user
 
 # --- HANDLE GITHUB CALLBACK ---
-params = st.experimental_get_query_params()
+params = st.query_params()
 if "code" in params:
     code = params["code"][0]
     try:
@@ -87,8 +87,8 @@ if "code" in params:
             profile = fetch_github_profile(access_token)
             st.session_state.step = "dashboard"
             st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
-            st.experimental_set_query_params()  # clear URL params
-            st.experimental_rerun()
+            st.query_params()  # clear URL params
+            st.rerun()
     except Exception as e:
         st.error(f"GitHub login failed: {e}")
 
