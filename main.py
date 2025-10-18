@@ -75,17 +75,18 @@ def fetch_github_profile(access_token):
 
 # --- HANDLE GITHUB CALLBACK ---
 params = st.query_params
-if "code" in params and st.session_state.step == "login":
+if "code" in params and st.session_state.step != "dashboard":
     code = params["code"][0]
     try:
         token = exchange_github_code_for_token(code)
         access_token = token.get("access_token")
         if access_token:
             profile = fetch_github_profile(access_token)
+            # Set session state immediately
             st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
             st.session_state.step = "dashboard"
-            
-            # Clear URL and reload app using JS redirect
+
+            # Clear URL and reload page so dashboard renders
             st.write("""
                 <script>
                     window.history.replaceState({}, document.title, "/");
@@ -156,4 +157,5 @@ elif st.session_state.step == "dashboard":
         for key in ["step", "otp", "otp_time", "user_email"]:
             st.session_state[key] = None
         st.session_state.step = "login"
-        st.experimental_rerun()  # optional, just to reload cleanly
+        # Force rerun to show login page cleanly
+        st.rerun()
