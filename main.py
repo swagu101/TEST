@@ -77,20 +77,34 @@ def fetch_github_profile(access_token):
     return user
 
 # --- HANDLE GITHUB CALLBACK ---
-params = st.experimental_get_query_params()
+params = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
 if "code" in params:
-    code = params["code"][0]
+    code = params["code"][0] if isinstance(params["code"], list) else params["code"]
     try:
         token = exchange_github_code_for_token(code)
-        access_token = token.get("access_token")
-        if access_token:
-            profile = fetch_github_profile(access_token)
-            st.session_state.step = "dashboard"
-            st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
-            st.experimental_set_query_params()  # clear URL params
-            st.experimental_rerun()
+        if "error" in token:
+            st.error(f"GitHub OAuth Error: {token.get('error_description', 'Unknown error')}")
+        else:
+            access_token = token.get("access_token")
+            if access_token:
+                profile = fetch_github_profile(access_token)
+                st.session_state.step = "dashboard"
+                st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
+
+                # ✅ Safe clearing of query params without triggering rerun
+                try:
+                    if hasattr(st, "query_params"):
+                        st.query_params.clear()
+                    else:
+                        st.experimental_set_query_params()
+                except Exception:
+                    pass
+
+                st.toast("✅ GitHub login successful!")
+                st.stop()
     except Exception as e:
         st.error(f"GitHub login failed: {e}")
+        st.stop()
 
 # --- LOGIN PAGE ---
 if st.session_state.step == "login":
@@ -127,7 +141,7 @@ if st.session_state.step == "login":
                 st.error("GitHub OAuth not configured in secrets.")
             else:
                 auth_url = get_github_auth_url()
-                st.markdown(f"[Click here to authorize via GitHub]({auth_url})")
+                st.markdown(f"[👉 Click here to authorize via GitHub]({auth_url})")
 
 # --- OTP VERIFY ---
 elif st.session_state.step == "verify":
