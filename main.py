@@ -151,4 +151,4 @@ elif st.session_state.step == "dashboard":
         for key in ["step", "otp", "otp_time", "user_email"]:
             st.session_state[key] = None
         st.session_state.step = "login"
-        st.experimental_rerun()
+        st.rerun()
