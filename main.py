@@ -77,7 +77,7 @@ def fetch_github_profile(access_token):
     return user
 
 # --- HANDLE GITHUB CALLBACK ---
-params = st.query_params()
+params = st.experimental_get_query_params()
 if "code" in params:
     code = params["code"][0]
     try:
