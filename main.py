@@ -8,22 +8,19 @@ from urllib.parse import urlencode
 # --- CONFIG ---
 st.set_page_config(page_title="2FA Login", page_icon="🔐")
 
-# --- STATE INIT ---
-if "step" not in st.session_state:
+# --- SESSION STATE INIT ---
+for key in ["step", "otp", "otp_time", "user_email", "github_handled", "dummy"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
+
+if st.session_state.step is None:
     st.session_state.step = "login"
-if "otp" not in st.session_state:
-    st.session_state.otp = None
-if "otp_time" not in st.session_state:
-    st.session_state.otp_time = None
-if "user_email" not in st.session_state:
-    st.session_state.user_email = None
 
 # --- EMAIL FUNCTION ---
 def send_email(to_email, otp):
     try:
         email_address = st.secrets["email_address"]
         email_password = st.secrets["email_password"]
-
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
             server.login(email_address, email_password)
@@ -78,19 +75,18 @@ def fetch_github_profile(access_token):
 
 # --- HANDLE GITHUB CALLBACK ---
 params = st.query_params
-if "code" in params:
+if "code" in params and not st.session_state.github_handled:
     code = params["code"][0]
     try:
         token = exchange_github_code_for_token(code)
         access_token = token.get("access_token")
         if access_token:
             profile = fetch_github_profile(access_token)
-            st.session_state.step = "dashboard"
             st.session_state.user_email = profile.get("email", profile.get("login", "unknown"))
-            # Clear URL params
-            st.query_params = {}
-            # Trigger rerun via session_state update
-            st.experimental_rerun()  # Optional: Remove if your app handles re-render automatically
+            st.session_state.step = "dashboard"
+            st.session_state.github_handled = True
+            st.query_params = {}  # clear URL params
+            st.session_state.dummy = random.random()  # trigger rerun
     except Exception as e:
         st.error(f"GitHub login failed: {e}")
 
@@ -101,27 +97,29 @@ if st.session_state.step == "login":
 
     tab1, tab2 = st.tabs(["📧 Email OTP", "🐙 GitHub OAuth"])
 
+    # --- EMAIL OTP LOGIN ---
     with tab1:
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        user_email = st.text_input("Your Email")
+        username = st.text_input("Username", key="email_username")
+        password = st.text_input("Password", type="password", key="email_password")
+        user_email_input = st.text_input("Your Email", key="email_input")
 
         if st.button("Login with Email"):
             if username == "swagato" and password == "test123":
-                if not user_email or "@" not in user_email:
+                if not user_email_input or "@" not in user_email_input:
                     st.warning("⚠️ Please enter a valid email address.")
                 else:
                     otp = random.randint(100000, 999999)
                     st.session_state.otp = str(otp)
                     st.session_state.otp_time = time.time()
-                    st.session_state.user_email = user_email
+                    st.session_state.user_email = user_email_input
 
-                    if send_email(user_email, otp):
-                        st.success(f"✅ OTP sent to {user_email}. Check your inbox.")
+                    if send_email(user_email_input, otp):
+                        st.success(f"✅ OTP sent to {user_email_input}. Check your inbox.")
                         st.session_state.step = "verify"
             else:
                 st.error("Invalid username or password ❌")
 
+    # --- GITHUB LOGIN ---
     with tab2:
         st.write("Login using your GitHub account:")
         if st.button("Login with GitHub"):
@@ -131,10 +129,10 @@ if st.session_state.step == "login":
                 auth_url = get_github_auth_url()
                 st.markdown(f"[Click here to authorize via GitHub]({auth_url})")
 
-# --- OTP VERIFY ---
+# --- OTP VERIFICATION ---
 elif st.session_state.step == "verify":
     st.title("📩 Verify Your OTP")
-    otp_input = st.text_input("Enter the OTP sent to your email")
+    otp_input = st.text_input("Enter the OTP sent to your email", key="otp_input")
     if st.button("Verify"):
         if time.time() - st.session_state.otp_time > 180:
             st.warning("⚠️ OTP expired. Please login again.")
@@ -150,7 +148,7 @@ elif st.session_state.step == "dashboard":
     st.title("🎉 Welcome to Your Dashboard!")
     st.write(f"You are securely logged in as **{st.session_state.user_email}**")
     if st.button("Logout"):
-        for key in ["step", "otp", "otp_time", "user_email"]:
+        for key in ["step", "otp", "otp_time", "user_email", "github_handled"]:
             st.session_state[key] = None
         st.session_state.step = "login"
-        st.experimental_rerun()  # Optional: Remove if automatic rerun works
+        st.session_state.dummy = random.random()  # trigger rerun
